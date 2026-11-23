@@ -31,6 +31,7 @@ details{margin-bottom:8px}summary{cursor:pointer;margin-bottom:8px}
 #msg{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;display:none;z-index:5}
 a{color:var(--ac)}
 #pr{display:none}
+#login{max-width:380px;margin:10vh auto;padding:16px}
 @media print{
 @page{size:A4;margin:15mm}
 html,body{background:#fff!important;color:#000!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -47,7 +48,7 @@ header,main,#msg{display:none!important}
 #pr .pn{white-space:pre-wrap}
 }
 </style></head><body>
-<header>
+<header style="display:none">
   <h1>⚽ Scouting</h1>
   <div style="position: relative; display: inline-block;">
     <button id="btn-menu" type="button" onclick="toggleMenu(event)">☰ Menu</button>
@@ -56,12 +57,20 @@ header,main,#msg{display:none!important}
       <button data-act="cart" style="width: 100%; text-align: left;">Cartelle</button>
       <button data-act="exp" style="width: 100%; text-align: left;">Esporta backup (JSON)</button>
       <button data-act="imp" style="width: 100%; text-align: left;">Importa backup</button>
+      <button data-act="reload" style="width: 100%; text-align: left;">Ricarica dati</button>
+      <button data-act="out" style="width: 100%; text-align: left;">Esci</button>
       <input type="file" id="fi" accept=".json,application/json" hidden>
     </div>
   </div>
 </header>
-
-<main id="app">Caricamento…</main><div id="msg"></div><div id="pr"></div>
+<p id="boot" style="text-align:center;margin-top:20vh">Caricamento…</p>
+<div id="login" style="display:none"><div class="card"><h2>⚽ Scouting – Accesso</h2>
+<form id="lf"><div class="g" style="grid-template-columns:1fr">
+<label>Email<input type="email" name="email" autocomplete="username" required></label>
+<label>Password<input type="password" name="password" autocomplete="current-password" required></label></div>
+<div class="row"><button class="p" type="submit">Accedi</button></div><div id="lerr" style="color:var(--bad)"></div></form></div></div>
+<main id="app" style="display:none"></main><div id="msg"></div><div id="pr"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.74.0/dist/umd/supabase.js"></script>
 <script>
 const ROLES={Portiere:["Portiere"],Difensore:["Difensore esterno","Difensore centrale", "Difensore laterale"],Centrocampista:["Centrocampista centrale","Centrocampista esterno","Centrocampista interno","Trequartista"],Attaccante:["Attaccante esterno","Punta centrale"]};
 const STATI=["Da seguire","Da prendere","Non idoneo"],AREE=[["fis","Fisico-atletico"],["tec","Tecnico"],["tat","Tattico"],["com","Comportamentale"]];
@@ -71,16 +80,25 @@ const num=v=>v===""||v==null?null:Number(v);
 const avg=a=>{a=a.filter(x=>x!=null&&!isNaN(x));return a.length?a.reduce((x,y)=>x+y,0)/a.length:null};
 const fmt=x=>x==null?"–":(Math.round(x*10)/10).toFixed(1);
 const url=u=>/^https?:\/\//i.test(u||"")?u:"";
-const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const uid=p=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const obsR=o=>avg(AREE.map(([k])=>o["v_"+k]));
 function age(p){const n=new Date();if(p.dataNascita){const b=new Date(p.dataNascita);let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return{v:a,ap:false}}return p.annoNascita?{v:n.getFullYear()-p.annoNascita,ap:true}:null}
 function toast(m){const e=$("#msg");e.textContent=m;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3500)}
 let P=[],O=[],FL=[],view={n:"home"},F={},armed=null,busy=false,incNote=true;
-const KEY="scouting_db_v1";
+const SUPABASE_URL="https://opovjcbkudvcnuoqlmih.supabase.co",SUPABASE_KEY="sb_publishable_bAbTUSBjiNVpWhjPuPrudg_8NoWrb_9",TABLE="scouting_data";
+const T={players:"calciatore",observations:"osservazione",folders:"cartella"},T2=Object.fromEntries(Object.entries(T).map(([a,b])=>[b,a]));
+let sb=null;
 let S={players:{},observations:{},folders:{}};
 function sync(){const l=c=>Object.entries(S[c]).map(([id,v])=>({id,...v}));P=l("players");O=l("observations");FL=l("folders")}
-function commit(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Impossibile salvare nel browser: esporta un backup")}sync();refresh()}
-const db={doc(path){const[c,id]=path.split("/");return{set:async d=>{S[c][id]=d;commit()},delete:async()=>{delete S[c][id];commit()}}}};
+function commit(){sync();refresh()}
+const db={doc(path){const[c,id]=path.split("/");return{
+ set:async d=>{const{error}=await sb.from(TABLE).upsert({id,tipo:T[c],contenuto:d});if(error)throw error;S[c][id]=d;commit()},
+ delete:async()=>{const{error}=await sb.from(TABLE).delete().eq("id",id);if(error)throw error;delete S[c][id];commit()}}}};
+async function loadAll(){const out={players:{},observations:{},folders:{}};
+ for(let from=0;;from+=1000){const{data,error}=await sb.from(TABLE).select("id,tipo,contenuto").order("id").range(from,from+999);if(error)throw error;
+  data.forEach(r=>{const c=T2[r.tipo];if(!c)return;let v=r.contenuto;if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=null}}if(v&&typeof v==="object")out[c][r.id]=v});
+  if(data.length<1000)break}
+ S=out;sync()}
 function exportB(){const b=new Blob([JSON.stringify({app:"scouting",version:1,exportedAt:new Date().toISOString(),data:S},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="backup-scouting-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast("Backup esportato")}
 const strip=({id,...r})=>r;
 async function run(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast("Errore: "+(e.message||e.code||"operazione non riuscita"))}finally{busy=false}}
@@ -223,14 +241,14 @@ function pdfDoc(pid,oid){
 document.addEventListener("input",e=>{const t=e.target;if(t.dataset.f){F[t.dataset.f]=t.value;if(t.dataset.f==="ruolo"){F.spec=""}rHome()}});
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset.inote!=null)incNote=t.checked;if(t.dataset.f&&t.tagName==="SELECT"){F[t.dataset.f]=t.value;rHome()}
  if(t.dataset.fold)run(async()=>{const f=FL.find(x=>x.id===t.dataset.fold),s=new Set(f.playerIds||[]);t.checked?s.add(t.dataset.pid):s.delete(t.dataset.pid);await db.doc("folders/"+f.id).set({...strip(f),playerIds:[...s]})})});
-document.addEventListener("submit",e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target).entries());
+document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="lf"){login(e.target);return}const d=Object.fromEntries(new FormData(e.target).entries());
  if(view.n==="pform")run(async()=>{const id=view.id||uid("p"),old=P.find(x=>x.id===id)||{};
   const r={...strip(old),...d,annoNascita:num(d.annoNascita)};await db.doc("players/"+id).set(r);toast("Salvato");go({n:"detail",id})});
  else if(view.n==="oform")run(async()=>{const id=view.oid||uid("o"),pid=view.pid||O.find(x=>x.id===id).playerId,r={...d,playerId:pid};
   AREE.forEach(([k])=>r["v_"+k]=num(d["v_"+k]));r.altezza=num(d.altezza);r.peso=num(d.peso);await db.doc("observations/"+id).set(r);toast("Salvato");go({n:"detail",id:pid})})});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,id=b.dataset.id;
  const arm=k=>{if(armed!==k){armed=k;refresh();return false}armed=null;return true};
- if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
+ if(a==="out")run(async()=>{await sb.auth.signOut()});else if(a==="reload")run(async()=>{await loadAll();go({n:"home"});toast("Dati aggiornati")});else if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
  else if(a==="newp")go({n:"pform"});else if(a==="editp")go({n:"pform",id});else if(a==="newo")go({n:"oform",pid:id});else if(a==="edito")go({n:"oform",oid:id});
  else if(a==="pdfp")pdfDoc(id);
  else if(a==="pdfo"){const o=O.find(x=>x.id===id);if(o)pdfDoc(o.playerId,id)}
@@ -245,14 +263,27 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(
  else if(a==="openf"){F.cart=id;go({n:"home"})}});
 
 /* AVVIO */
+const show=w=>{$("#boot").style.display="none";$("#login").style.display=w==="login"?"block":"none";document.querySelector("header").style.display=w==="app"?"":"none";app.style.display=w==="app"?"":"none"};
+async function enter(){show("app");app.textContent="Caricamento dati…";
+ try{await loadAll();go({n:"home"})}catch(e){app.innerHTML=`<p>Impossibile caricare i dati: ${esc(e.message||"errore di rete")}</p><button data-act="reload">Riprova</button>`}}
+async function login(f){const b=f.querySelector("button"),m=$("#lerr");m.textContent="";b.disabled=true;
+ try{const{error}=await sb.auth.signInWithPassword({email:f.elements.email.value.trim(),password:f.elements.password.value});if(error)throw error;
+  f.elements.password.value="";await enter()}
+ catch(x){m.textContent=/invalid login|invalid_credentials/i.test((x.message||"")+(x.code||""))?"Email o password non corretti.":"Accesso non riuscito: "+(x.message||"errore di rete")}
+ finally{b.disabled=false}}
 $("#fi").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const r=new FileReader();
- r.onload=()=>{try{const j=JSON.parse(r.result),d=j.data||j;
-  if(!["players","observations","folders"].every(k=>d[k]&&typeof d[k]==="object"&&!Array.isArray(d[k])))throw 0;
-  if(!confirm("L’importazione sostituisce tutti i dati attuali ("+Object.keys(S.players).length+" calciatori). Continuare?"))return;
-  S={players:d.players,observations:d.observations,folders:d.folders};commit();go({n:"home"});toast("Backup importato")}catch(x){toast("File non valido")}};
+ r.onload=()=>{let d;try{const j=JSON.parse(r.result);d=j.data||j;if(!["players","observations","folders"].every(k=>d[k]&&typeof d[k]==="object"&&!Array.isArray(d[k])))throw 0}catch(x){toast("File non valido");return}
+  const rows=[];for(const[c,t]of Object.entries(T))for(const[id,v]of Object.entries(d[c]))if(v&&typeof v==="object")rows.push({id,tipo:t,contenuto:v});
+  if(!confirm("Importo "+rows.length+" record (calciatori, osservazioni, cartelle). I record con lo stesso ID vengono aggiornati, gli altri restano invariati. Continuare?"))return;
+  run(async()=>{for(let i=0;i<rows.length;i+=200){const{error}=await sb.from(TABLE).upsert(rows.slice(i,i+200));if(error)throw error}
+   await loadAll();go({n:"home"});toast("Backup importato")})};
  r.readAsText(f)});
-try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.players&&d.observations&&d.folders)S=d}}catch(e){toast("Dati locali non leggibili")}
-sync();go({n:"home"});
+(async()=>{
+ if(!window.supabase){show("login");$("#lerr").textContent="Impossibile caricare Supabase: serve una connessione internet.";return}
+ sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+ sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT"){S={players:{},observations:{},folders:{}};sync();F={};view={n:"home"};$("#pr").innerHTML="";app.innerHTML="";show("login")}});
+ try{const{data}=await sb.auth.getSession();data.session?await enter():show("login")}catch(e){show("login")}
+})();
 </script><script>
   function toggleMenu(e) {
     e.stopPropagation();
