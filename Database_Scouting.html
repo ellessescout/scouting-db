@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scouting – database calciatori (locale)</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1c2420;--mut:#5f6b64;--card:#fff;--bd:#d9ded8;--ac:#1f6f4a;--acf:#fff;--bad:#b3261e;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141916;--fg:#e8ece9;--mut:#9aa7a0;--card:#1d2420;--bd:#2f3a34;--ac:#4cc38a;--acf:#06150d;--bad:#ff8a80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141916;--fg:#e8ece9;--mut:#9aa7a0;--card:#1d2420;--bd:#2f3a34;--ac:#4cc38a;--acf:#06150d;--bad:#ff8a80;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+h1{font-size:18px;margin:0}h2{font-size:17px;margin:0 0 8px}
+main{max-width:900px;margin:0 auto;padding:16px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;cursor:pointer}
+button.p{background:var(--ac);color:var(--acf);border-color:var(--ac)}
+button.d{color:var(--bad)}
+input,select,textarea{width:100%;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px}
+textarea{min-height:64px}
+label{display:block;font-size:13px;color:var(--mut)}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:8px 0}
+.card.c{cursor:pointer}
+small,.m{color:var(--mut)}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--bd);border-radius:99px;padding:1px 8px;margin-left:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.rt{font-weight:600;color:var(--ac)}
+details{margin-bottom:8px}summary{cursor:pointer;margin-bottom:8px}
+#msg{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;display:none;z-index:5}
+a{color:var(--ac)}
+#pr{display:none}
+@media print{
+@page{size:A4;margin:15mm}
+html,body{background:#fff!important;color:#000!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+:root{padding:0!important}
+header,main,#msg{display:none!important}
+#pr{display:block;font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#000}
+#pr h1{font-size:22px;margin:0 0 4px}
+#pr h2{font-size:14px;margin:14px 0 6px;border-bottom:1px solid #999;padding-bottom:2px}
+#pr .meta{color:#444;margin:2px 0}
+#pr .ob{break-inside:avoid;border:1px solid #bbb;border-radius:6px;padding:8px 10px;margin:8px 0}
+#pr table{width:100%;border-collapse:collapse;margin:6px 0}
+#pr td,#pr th{border:1px solid #ccc;padding:4px 6px;text-align:left;vertical-align:top;white-space:pre-wrap}
+#pr th{background:#eee}
+#pr .pn{white-space:pre-wrap}
+}
+</style></head><body>
+<header>
+  <h1>⚽ Scouting</h1>
+  <div style="position: relative; display: inline-block;">
+    <button id="btn-menu" type="button" onclick="toggleMenu(event)">☰ Menu</button>
+    <div id="menu-tendina" style="display: none; position: absolute; right: 0; top: 110%; background: #ffffff; border: 1px solid #cccccc; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; flex-direction: column; gap: 6px; min-width: 190px;">
+      <button data-act="home" style="width: 100%; text-align: left;">Calciatori</button>
+      <button data-act="cart" style="width: 100%; text-align: left;">Cartelle</button>
+      <button data-act="exp" style="width: 100%; text-align: left;">Esporta backup (JSON)</button>
+      <button data-act="imp" style="width: 100%; text-align: left;">Importa backup</button>
+      <input type="file" id="fi" accept=".json,application/json" hidden>
+    </div>
+  </div>
+</header>
+
+<main id="app">Caricamento…</main><div id="msg"></div><div id="pr"></div>
+<script>
+const ROLES={Portiere:["Portiere"],Difensore:["Difensore esterno","Difensore centrale", "Difensore laterale"],Centrocampista:["Centrocampista centrale","Centrocampista esterno","Centrocampista interno","Trequartista"],Attaccante:["Attaccante esterno","Punta centrale"]};
+const STATI=["Da seguire","Da prendere","Non idoneo"],AREE=[["fis","Fisico-atletico"],["tec","Tecnico"],["tat","Tattico"],["com","Comportamentale"]];
+const $=s=>document.querySelector(s),app=$("#app");
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>v===""||v==null?null:Number(v);
+const avg=a=>{a=a.filter(x=>x!=null&&!isNaN(x));return a.length?a.reduce((x,y)=>x+y,0)/a.length:null};
+const fmt=x=>x==null?"–":(Math.round(x*10)/10).toFixed(1);
+const url=u=>/^https?:\/\//i.test(u||"")?u:"";
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const obsR=o=>avg(AREE.map(([k])=>o["v_"+k]));
+function age(p){const n=new Date();if(p.dataNascita){const b=new Date(p.dataNascita);let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return{v:a,ap:false}}return p.annoNascita?{v:n.getFullYear()-p.annoNascita,ap:true}:null}
+function toast(m){const e=$("#msg");e.textContent=m;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3500)}
+let P=[],O=[],FL=[],view={n:"home"},F={},armed=null,busy=false,incNote=true;
+const KEY="scouting_db_v1";
+let S={players:{},observations:{},folders:{}};
+function sync(){const l=c=>Object.entries(S[c]).map(([id,v])=>({id,...v}));P=l("players");O=l("observations");FL=l("folders")}
+function commit(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Impossibile salvare nel browser: esporta un backup")}sync();refresh()}
+const db={doc(path){const[c,id]=path.split("/");return{set:async d=>{S[c][id]=d;commit()},delete:async()=>{delete S[c][id];commit()}}}};
+function exportB(){const b=new Blob([JSON.stringify({app:"scouting",version:1,exportedAt:new Date().toISOString(),data:S},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="backup-scouting-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast("Backup esportato")}
+const strip=({id,...r})=>r;
+async function run(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast("Errore: "+(e.message||e.code||"operazione non riuscita"))}finally{busy=false}}
+function go(v){view=v;armed=null;app.innerHTML="";render();window.scrollTo(0,0)}
+function render(){({home:rHome,detail:rDetail,pform:rPForm,oform:rOForm,cart:rCart})[view.n]()}
+function refresh(){if(["home","detail","cart"].includes(view.n))render()}
+const opts=(a,v,ph)=>(ph!=null?`<option value="">${ph}</option>`:"")+a.map(x=>`<option${x===v?" selected":""}>${esc(x)}</option>`).join("");
+const specOpts=v=>Object.entries(ROLES).map(([r,a])=>`<optgroup label="${r}">${opts(a,v)}</optgroup>`).join("");
+const fld=(l,n,v,t="text",x="")=>`<div><label>${l}<input type="${t}" name="${n}" value="${esc(v)}" ${x}></label></div>`;
+
+/* HOME */
+function rHome(){
+ if(!$("#list")){
+  app.innerHTML=`<div class="row"><button class="p" data-act="newp">Aggiungi Calciatore</button></div>
+  <details open><summary>Filtri</summary><div class="g" id="flt">
+  <div><label>Nome<input data-f="q" value="${esc(F.q)}"></label></div>
+  <div><label>Ruolo<select data-f="ruolo">${opts(Object.keys(ROLES),F.ruolo,"Tutti")}</select></label></div>
+  <div><label>Ruolo specifico<select data-f="spec"><option value="">Tutti</option>${specOpts(F.spec)}</select></label></div>
+  <div><label>Età da<input type="number" data-f="eMin" value="${esc(F.eMin)}"></label></div>
+  <div><label>Età fino a<input type="number" data-f="eMax" value="${esc(F.eMax)}"></label></div>
+  <div><label>Anno di nascita<input type="number" data-f="annata" value="${esc(F.annata)}"></label></div>
+  <div><label>Categoria<select data-f="cat">${opts(["Under 14","Under 15","Under 16","Under 17","Under 18","Under 19","Prima Squadra"],F.cat,"Tutte")}</select></label></div>
+  <div><label>Campionato<select data-f="camp"><option value="">-- Seleziona --</option>${["Prima Squadra","U19 elite", "U19 regionali", "U19 provinciali","U18 elite","U17 elite", "U17 regionali", "U17 provinciali","U16 elite", "U16 regionali", "U16 provinciali","U15 elite", "U15 regionali", "U15 provinciali","U14 elite", "U14 regionali", "U14 provinciali","Scuola Calcio"].map(opt => `<option value="${esc(opt)}" ${F.camp === opt ? 'selected' : ''}>${esc(opt)}</option>`).join('')}</select></label></div>
+
+  <div><label>Piede<select data-f="piede">${opts(["Destro","Sinistro"],F.piede,"Tutti")}</select></label></div>
+  <div><label>Stato<select data-f="stato">${opts(STATI,F.stato,"Tutti")}</select></label></div>
+  <div><label>Osservatore<input data-f="fonte" value="${esc(F.fonte)}"></label></div>
+  <div><label>Cartella<select data-f="cart" id="fcart"></select></label></div>
+  <div><label>Rating minimo<input type="number" step="0.5" min="0" max="10" data-f="rMin" value="${esc(F.rMin)}"></label></div>
+  <div><label>Ordina per<select data-f="ord">${["Nome","Rating","Annata"].map(x=>`<option${F.ord===x?" selected":""}>${x}</option>`).join("")}</select></label></div>
+  </div><div class="row"><button data-act="reset">Azzera filtri</button><span class="m" id="cnt"></span></div></details><div id="list"></div>`;
+ }
+ const sel=$("#fcart");sel.innerHTML=`<option value="">Tutte</option>`+FL.map(f=>`<option value="${esc(f.id)}"${F.cart===f.id?" selected":""}>${esc(f.name)}</option>`).join("");
+ const q=(F.q||"").toLowerCase(),inc=(a,b)=>!b||(a||"").toLowerCase().includes(b.toLowerCase());
+ let rows=P.map(p=>{const o=O.filter(x=>x.playerId===p.id);return{p,n:o.length,r:avg(o.map(obsR)),a:age(p)}}).filter(({p,r,a})=>{
+  const fo=FL.find(f=>f.id===F.cart);
+  return inc(p.nome,q)&&(!F.ruolo||p.ruolo===F.ruolo)&&(!F.spec||p.spec===F.spec)&&(!F.eMin||(a&&a.v>=+F.eMin))&&(!F.eMax||(a&&a.v<=+F.eMax))
+  &&(!F.annata||p.annoNascita==F.annata)&&inc(p.categoria,F.cat)&&inc(p.campionato,F.camp)&&(!F.piede||p.piede===F.piede)&&(!F.stato||p.stato===F.stato)
+  &&inc(p.fonte,F.fonte)&&(!F.cart||(fo&&(fo.playerIds||[]).includes(p.id)))&&(!F.rMin||(r!=null&&r>=+F.rMin))});
+ const ord=F.ord||"Nome";
+ rows.sort((x,y)=>ord==="Rating"?(y.r??-1)-(x.r??-1):ord==="Annata"?(y.p.annoNascita||0)-(x.p.annoNascita||0):(x.p.nome||"").localeCompare(y.p.nome||""));
+ $("#cnt").textContent=rows.length+" di "+P.length+" calciatori";
+ $("#list").innerHTML=rows.map(({p,n,r,a})=>`<div class="card c" data-act="open" data-id="${esc(p.id)}"><b>${esc(p.nome)}</b>${p.stato?`<span class="tag">${esc(p.stato)}</span>`:""}
+  <div><small>${[p.spec||p.ruolo,a?(a.ap?"~":"")+a.v+" anni":"",p.annoNascita?"classe "+p.annoNascita:"",p.societa,p.categoria].filter(Boolean).map(esc).join(" · ")}</small></div>
+  <div class="rt">Rating ${fmt(r)} <small>(${n} osserv.)</small></div></div>`).join("")||`<p class="m">Nessun calciatore. Aggiungine uno con “Aggiungi Calciatore”.</p>`;
+}
+
+/* DETTAGLIO */
+function rDetail(){
+ const p=P.find(x=>x.id===view.id);if(!p){go({n:"home"});return}
+ const os=O.filter(x=>x.playerId===p.id).sort((a,b)=>(b.dataOss||"").localeCompare(a.dataOss||"")),a=age(p);
+ const links = url(p.l1) ? `<a href="${esc(url(p.l1))}" target="_blank" rel="noopener noreferrer">Link</a>` : "";
+ app.innerHTML=`<div class="row"><button data-act="home">← Elenco</button><button data-act="editp" data-id="${esc(p.id)}">Modifica</button><button data-act="pdfp" data-id="${esc(p.id)}">Scarica PDF (scheda completa)</button><label style="display:inline-flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" data-inote style="width:auto"${incNote?" checked":""}>Includi note personali</label><button class="d" data-act="delp" data-id="${esc(p.id)}">${armed==="p"+p.id?"Conferma eliminazione":"Elimina"}</button></div>
+ <div class="card"><h2>${esc(p.nome)}<span class="tag">${esc(p.stato||"")}</span></h2>
+ <div>${[p.spec||p.ruolo,p.ruoliSec&&"anche "+p.ruoliSec,p.piede&&"piede "+p.piede].filter(Boolean).map(esc).join(" · ")}</div>
+ <div class="m">${[a&&(a.ap?"~":"")+a.v+" anni",p.annoNascita&&"classe "+p.annoNascita,p.dataNascita,p.nazionalita].filter(Boolean).map(esc).join(" · ")}</div>
+ <div class="m">${[p.societa,p.categoria,p.campionato].filter(Boolean).map(esc).join(" · ")}</div>
+ ${p.fonte?`<div class="m">Fonte: ${esc(p.fonte)}</div>`:""}
+ <div>${links||"<span class='m'>Nessun link</span>"}${p.dataLink?` <small>(ultimo controllo ${esc(p.dataLink)})</small>`:""}</div>
+ <div class="rt">Rating medio ${fmt(avg(os.map(obsR)))} <small>(${os.length} osservazioni)</small></div></div>
+ <div class="card"><b>Cartelle</b><div class="row">${FL.map(f=>`<label style="display:flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" style="width:auto" data-fold="${esc(f.id)}" data-pid="${esc(p.id)}"${(f.playerIds||[]).includes(p.id)?" checked":""}>${esc(f.name)}</label>`).join("")||"<span class='m'>Crea prima una cartella dalla sezione Cartelle.</span>"}</div></div>
+ <div class="row"><h2 style="margin:0">Osservazioni</h2><button class="p" data-act="newo" data-id="${esc(p.id)}">+ Osservazione</button></div>
+ ${os.map(o=>`<div class="card"><b>${esc(o.dataOss||"")}</b> <span class="tag">${esc(o.modalita||"")}</span><span class="tag">${esc(o.giudizio||"")}</span>
+ <div class="m">${[o.partita,o.dataGara&&"gara del "+o.dataGara,o.societaM,o.categoria,o.altezza&&o.altezza+" cm",o.peso&&o.peso+" kg"].filter(Boolean).map(esc).join(" · ")}</div>
+ <div class="rt">Rating ${fmt(obsR(o))}</div>
+ ${AREE.map(([k,l])=>`<div><b>${l}: ${fmt(o["v_"+k])}</b> ${esc(o["n_"+k]||"")}</div>`).join("")}
+ ${o.noteP?`<div class="m">Note personali: ${esc(o.noteP)}</div>`:""}
+ ${url(o.video)?`<div><a href="${esc(url(o.video))}" target="_blank" rel="noopener noreferrer">Video</a></div>`:""}
+ <div class="row"><button data-act="edito" data-id="${esc(o.id)}">Modifica</button><button data-act="pdfo" data-id="${esc(o.id)}">Scarica PDF</button><button class="d" data-act="delo" data-id="${esc(o.id)}">${armed==="o"+o.id?"Conferma eliminazione":"Elimina"}</button></div></div>`).join("")||`<p class="m">Nessuna osservazione.</p>`}`;
+}
+
+/* FORM CALCIATORE */
+function rPForm(){
+ const p=view.id?P.find(x=>x.id===view.id):{stato:"Da seguire"};
+ app.innerHTML=`<h2>${view.id?"Modifica calciatore":"Nuovo calciatore"}</h2><form id="f"><div class="g">
+ ${fld("Nome e cognome *","nome",p.nome,"text","required")}${fld("Anno di nascita *","annoNascita",p.annoNascita,"number","required min=1950 max=2030")}${fld("Data di nascita (facoltativa)","dataNascita",p.dataNascita,"date")}
+ <div><label>Nazionalità<select name="nazionalita">${opts(["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua e Barbuda","Arabia Saudita","Argentina","Armenia","Australia","Austria","Azerbaigian","Bahamas","Bahrein","Bangladesh","Barbados","Belgio","Belize","Benin","Bhutan","Bielorussia","Birmania (Myanmar)","Bolivia","Bosnia ed Erzegovina","Botswana","Brasile","Brunei","Bulgaria","Burkina Faso","Burundi","Cambogia","Camerun","Canada","Capo Verde","Ciad","Cile","Cina","Cipro","Città del Vaticano","Colombia","Comore","Corea del Nord","Corea del Sud","Costa d'Avorio","Costa Rica","Croazia","Cuba","Danimarca","Dominica","Ecuador","Egitto","El Salvador","Emirati Arabi Uniti","Eritrea","Estonia","Eswatini","Etiopia","Figi","Filippine","Finlandia","Francia","Gabon","Galles","Gambia","Georgia","Germania","Ghana","Giamaica","Giappone","Gibuti","Giordania","Grecia","Grenada","Guatemala","Guinea","Guinea-Bissau","Guinea Equatoriale","Guyana","Haiti","Honduras","India","Indonesia","Inghilterra","Iran","Iraq","Irlanda","Irlanda del Nord","Islanda","Isole Marshall","Isole Salomone","Israele","Italia","Kazakistan","Kenya","Kirghizistan","Kiribati","Kosovo","Kuwait","Laos","Lesotho","Lettonia","Libano","Liberia","Libia","Liechtenstein","Lituania","Lussemburgo","Macedonia del Nord","Madagascar","Malawi","Maldive","Malesia","Mali","Malta","Marocco","Mauritania","Mauritius","Messico","Micronesia","Moldavia","Monaco","Mongolia","Montenegro","Mozambico","Namibia","Nauru","Nepal","Nicaragua","Niger","Nigeria","Norvegia","Nuova Zelanda","Oman","Paesi Bassi","Pakistan","Palau","Palestina","Panama","Papua Nuova Guinea","Paraguay","Perù","Polonia","Portogallo","Qatar","Regno Unito","Repubblica Ceca","Repubblica Centrafricana","Repubblica del Congo","Repubblica Democratica del Congo","Repubblica Dominicana","Romania","Ruanda","Russia","Saint Kitts e Nevis","Saint Lucia","Saint Vincent e Grenadine","Samoa","San Marino","São Tomé e Príncipe","Scozia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Siria","Slovacchia","Slovenia","Somalia","Spagna","Sri Lanka","Stati Uniti","Sudafrica","Sudan","Sudan del Sud","Suriname","Svezia","Svizzera","Tagikistan","Taiwan","Tanzania","Thailandia","Timor Est","Togo","Tonga","Trinidad e Tobago","Tunisia","Turchia","Turkmenistan","Tuvalu","Ucraina","Uganda","Ungheria","Uruguay","Uzbekistan","Vanuatu","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"],p.nazionalita,"–")}</select></label></div>
+
+ <div><label>Piede<select name="piede">${opts(["Destro","Sinistro"],p.piede,"–")}</select></label></div>
+ <div><label>Ruolo<select name="ruolo" id="rr">${opts(Object.keys(ROLES),p.ruolo,"–")}</select></label></div>
+ <div><label>Ruolo specifico<select name="spec"><option value="">–</option>${specOpts(p.spec)}</select></label></div>
+ ${fld("Ruoli secondari","ruoliSec",p.ruoliSec)}${fld("Società attuale","societa",p.societa)}<div><label>Categoria<select name="categoria">${opts(["Prima Squadra","U19 elite","U19 regionali","U19 provinciali","U18 elite","U17 elite","U17 regionali","U17 provinciali","U16 elite","U16 regionali","U16 provinciali","U15 elite","U15 regionali","U15 provinciali","U14 elite","U14 regionali","U14 provinciali","Scuola Calcio"],p.categoria,"–")}</select></label></div>
+<div><label>Girone<select name="campionato" data-f="campionato">${opts(["Girone A","Girone B","Girone C","Girone D","Girone E","Girone F","Girone G","Girone H","Girone I","Girone J","Girone K","Girone L"],p.campionato,"–")}</select></label></div>
+${fld("Osservatore","fonte",p.fonte)}
+
+
+ <div><label>Stato<select name="stato">${opts(STATI,p.stato)}</select></label></div>
+ ${fld("Link","l1",p.l1,"url")}
+ </div><div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="${view.id?"open":"home"}" data-id="${esc(view.id||"")}">Annulla</button></div></form>`;
+}
+/* FORM OSSERVAZIONE */
+function rOForm(){
+ const o=view.oid?O.find(x=>x.id===view.oid):{dataOss:new Date().toISOString().slice(0,10),modalita:"Live",giudizio:"Da seguire"};
+ const p=P.find(x=>x.id===(o.playerId||view.pid));
+ app.innerHTML=`<h2>${view.oid?"Modifica":"Nuova"} osservazione – ${esc(p&&p.nome)}</h2><form id="f"><div class="g">
+ ${fld("Data osservazione","dataOss",o.dataOss,"date","required")}${fld("Data della gara","dataGara",o.dataGara,"date")}
+ <div><label>Modalità<select name="modalita">${opts(["Live","Video"],o.modalita)}</select></label></div>
+ ${fld("Partita","partita",o.partita)}${fld("Società al momento","societaM",o.societaM||(p&&p.societa))}${fld("Categoria","categoria",o.categoria||(p&&p.categoria))}
+ ${fld("Altezza (cm)","altezza",o.altezza,"number")}${fld("Peso (kg)","peso",o.peso,"number")}${fld("Link video","video",o.video,"url")}</div>
+ ${AREE.map(([k,l])=>`<div class="card"><b>${l}</b><div class="g"><div><label>Voto 0–10<input type="number" name="v_${k}" min="0" max="10" step="0.5" value="${esc(o["v_"+k])}"></label></div></div><label>Note<textarea name="n_${k}">${esc(o["n_"+k])}</textarea></label></div>`).join("")}
+ <label>Note personali<textarea name="noteP">${esc(o.noteP)}</textarea></label>
+ <div><label>Giudizio<select name="giudizio">${opts(STATI,o.giudizio)}</select></label></div>
+ <div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="open" data-id="${esc(p&&p.id)}">Annulla</button></div></form>`;
+}
+/* CARTELLE */
+function rCart(){
+ if(app.querySelector("input:focus"))return;
+ app.innerHTML=`<h2>Cartelle</h2><div class="row"><input id="nf" placeholder="Nome nuova cartella" style="max-width:260px"><button class="p" data-act="newf">Crea</button></div>
+ ${FL.map(f=>`<div class="card"><div class="row"><input value="${esc(f.name)}" data-rn="${esc(f.id)}" style="max-width:260px"><button data-act="renf" data-id="${esc(f.id)}">Rinomina</button>
+ <button data-act="openf" data-id="${esc(f.id)}">Apri (${(f.playerIds||[]).length})</button><button class="d" data-act="delf" data-id="${esc(f.id)}">${armed==="f"+f.id?"Conferma":"Elimina"}</button></div></div>`).join("")||`<p class="m">Nessuna cartella.</p>`}`;
+}
+
+/* PDF (stampa del report: nel dialogo si sceglie “Salva come PDF”) */
+function pdfDoc(pid,oid){
+ const p=P.find(x=>x.id===pid);if(!p)return;
+ const all=O.filter(x=>x.playerId===pid).sort((a,b)=>(b.dataOss||"").localeCompare(a.dataOss||""));
+ const os=oid?all.filter(x=>x.id===oid):all,a=age(p),line=(...x)=>x.filter(Boolean).map(esc).join(" · ");
+ const h=`<h1>${esc(p.nome)}</h1>
+ <div class="meta">${line(p.spec||p.ruolo,p.ruoliSec&&"anche "+p.ruoliSec,p.piede&&"piede "+p.piede)}</div>
+ <div class="meta">${line(a&&(a.ap?"~":"")+a.v+" anni",p.annoNascita&&"classe "+p.annoNascita,p.dataNascita,p.nazionalita)}</div>
+ <div class="meta">${line(p.societa,p.categoria,p.campionato)}</div>
+ ${p.fonte?`<div class="meta">Osservatore: ${esc(p.fonte)}</div>`:""}
+ ${url(p.l1)?`<div class="meta">Link: ${esc(p.l1)}</div>`:""}
+ <div class="meta"><b>Stato: ${esc(p.stato||"–")}</b> · Rating medio ${fmt(avg(all.map(obsR)))} (${all.length} osservazioni)</div>
+ <h2>${oid?"Osservazione":"Osservazioni"}</h2>`+(os.map(o=>`<div class="ob"><b>${esc(o.dataOss||"")}</b> · ${esc(o.modalita||"")} · Giudizio: <b>${esc(o.giudizio||"–")}</b>
+ <div class="meta">${line(o.partita,o.dataGara&&"gara del "+o.dataGara,o.societaM,o.categoria,o.altezza&&o.altezza+" cm",o.peso&&o.peso+" kg")}</div>
+ <table><tr><th>Area</th><th style="width:48px">Voto</th><th>Note</th></tr>${AREE.map(([k,l])=>`<tr><td>${l}</td><td>${fmt(o["v_"+k])}</td><td>${esc(o["n_"+k]||"")}</td></tr>`).join("")}<tr><td><b>Rating</b></td><td><b>${fmt(obsR(o))}</b></td><td></td></tr></table>
+ ${incNote&&o.noteP?`<div class="pn"><b>Note personali:</b> ${esc(o.noteP)}</div>`:""}
+ ${url(o.video)?`<div class="meta">Video: ${esc(o.video)}</div>`:""}</div>`).join("")||`<p>Nessuna osservazione.</p>`)
+ +`<div class="meta" style="margin-top:12px">Generato il ${new Date().toLocaleDateString("it-IT")}</div>`;
+ const t0=document.title;
+ document.title="Report "+p.nome+(oid&&os[0]?" "+(os[0].dataOss||""):"")+" "+new Date().toISOString().slice(0,10);
+ $("#pr").innerHTML=h;
+ const done=()=>{document.title=t0;$("#pr").innerHTML="";window.removeEventListener("afterprint",done)};
+ window.addEventListener("afterprint",done);
+ setTimeout(()=>window.print(),50);
+}
+
+/* EVENTI */
+document.addEventListener("input",e=>{const t=e.target;if(t.dataset.f){F[t.dataset.f]=t.value;if(t.dataset.f==="ruolo"){F.spec=""}rHome()}});
+document.addEventListener("change",e=>{const t=e.target;if(t.dataset.inote!=null)incNote=t.checked;if(t.dataset.f&&t.tagName==="SELECT"){F[t.dataset.f]=t.value;rHome()}
+ if(t.dataset.fold)run(async()=>{const f=FL.find(x=>x.id===t.dataset.fold),s=new Set(f.playerIds||[]);t.checked?s.add(t.dataset.pid):s.delete(t.dataset.pid);await db.doc("folders/"+f.id).set({...strip(f),playerIds:[...s]})})});
+document.addEventListener("submit",e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target).entries());
+ if(view.n==="pform")run(async()=>{const id=view.id||uid("p"),old=P.find(x=>x.id===id)||{};
+  const r={...strip(old),...d,annoNascita:num(d.annoNascita)};await db.doc("players/"+id).set(r);toast("Salvato");go({n:"detail",id})});
+ else if(view.n==="oform")run(async()=>{const id=view.oid||uid("o"),pid=view.pid||O.find(x=>x.id===id).playerId,r={...d,playerId:pid};
+  AREE.forEach(([k])=>r["v_"+k]=num(d["v_"+k]));r.altezza=num(d.altezza);r.peso=num(d.peso);await db.doc("observations/"+id).set(r);toast("Salvato");go({n:"detail",id:pid})})});
+document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,id=b.dataset.id;
+ const arm=k=>{if(armed!==k){armed=k;refresh();return false}armed=null;return true};
+ if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
+ else if(a==="newp")go({n:"pform"});else if(a==="editp")go({n:"pform",id});else if(a==="newo")go({n:"oform",pid:id});else if(a==="edito")go({n:"oform",oid:id});
+ else if(a==="pdfp")pdfDoc(id);
+ else if(a==="pdfo"){const o=O.find(x=>x.id===id);if(o)pdfDoc(o.playerId,id)}
+ else if(a==="reset"){F={};app.innerHTML="";rHome()}
+ else if(a==="delp"){if(arm("p"+id))run(async()=>{for(const o of O.filter(x=>x.playerId===id))await db.doc("observations/"+o.id).delete();
+  for(const f of FL.filter(f=>(f.playerIds||[]).includes(id)))await db.doc("folders/"+f.id).set({...strip(f),playerIds:f.playerIds.filter(x=>x!==id)});
+  await db.doc("players/"+id).delete();go({n:"home"})})}
+ else if(a==="delo"){if(arm("o"+id))run(async()=>{await db.doc("observations/"+id).delete()})}
+ else if(a==="newf"){const n=$("#nf").value.trim();if(n)run(async()=>{await db.doc("folders/"+uid("f")).set({name:n,playerIds:[]})})}
+ else if(a==="renf"){const n=app.querySelector(`[data-rn="${id}"]`).value.trim(),f=FL.find(x=>x.id===id);if(n)run(async()=>{await db.doc("folders/"+id).set({...strip(f),name:n});toast("Rinominata")})}
+ else if(a==="delf"){if(arm("f"+id))run(async()=>{await db.doc("folders/"+id).delete()})}
+ else if(a==="openf"){F.cart=id;go({n:"home"})}});
+
+/* AVVIO */
+$("#fi").addEventListener("change",e=>{const f=e.target.files[0];e.target.value="";if(!f)return;const r=new FileReader();
+ r.onload=()=>{try{const j=JSON.parse(r.result),d=j.data||j;
+  if(!["players","observations","folders"].every(k=>d[k]&&typeof d[k]==="object"&&!Array.isArray(d[k])))throw 0;
+  if(!confirm("L’importazione sostituisce tutti i dati attuali ("+Object.keys(S.players).length+" calciatori). Continuare?"))return;
+  S={players:d.players,observations:d.observations,folders:d.folders};commit();go({n:"home"});toast("Backup importato")}catch(x){toast("File non valido")}};
+ r.readAsText(f)});
+try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.players&&d.observations&&d.folders)S=d}}catch(e){toast("Dati locali non leggibili")}
+sync();go({n:"home"});
+</script><script>
+  function toggleMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('menu-tendina');
+    menu.style.display = (menu.style.display === 'flex') ? 'none' : 'flex';
+  }
+
+  document.addEventListener('click', function() {
+    const menu = document.getElementById('menu-tendina');
+    if (menu) menu.style.display = 'none';
+  });
+</script>
+</body></html>
