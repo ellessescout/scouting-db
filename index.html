@@ -85,7 +85,7 @@ const obsR=o=>avg(AREE.map(([k])=>o["v_"+k]));
 function age(p){const n=new Date();if(p.dataNascita){const b=new Date(p.dataNascita);let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return{v:a,ap:false}}return p.annoNascita?{v:n.getFullYear()-p.annoNascita,ap:true}:null}
 function toast(m){const e=$("#msg");e.textContent=m;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3500)}
 let P=[],O=[],FL=[],view={n:"home"},F={},armed=null,busy=false,incNote=true;
-const SUPABASE_URL="https://opovjcbkudvcnuoqlmih.supabase.co",SUPABASE_KEY="sb_publishable_bAbTUSBjiNVpWhjPuPrudg_8NoWrb_9",TABLE="scouting_data";
+const SUPABASE_URL="https://opovjcbkudvcnuoqlmih.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wb3ZqY2JrdWR2Y251b3FsbWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0NTcwNDksImV4cCI6MjExMTAzMzA0OX0.BvQQ6o0_XrmaOYOZSQT20qZYfMDtic1VErIW8YBrH6Q",TABLE="scouting_data";
 const T={players:"calciatore",observations:"osservazione",folders:"cartella"},T2=Object.fromEntries(Object.entries(T).map(([a,b])=>[b,a]));
 let sb=null;
 let S={players:{},observations:{},folders:{}};
