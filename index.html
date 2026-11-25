@@ -32,6 +32,7 @@ details{margin-bottom:8px}summary{cursor:pointer;margin-bottom:8px}
 a{color:var(--ac)}
 #pr{display:none}
 #login{max-width:380px;margin:10vh auto;padding:16px}
+.hub{width:100%;text-align:center;padding:32px 12px;font:inherit;color:inherit;cursor:pointer}
 @media print{
 @page{size:A4;margin:15mm}
 html,body{background:#fff!important;color:#000!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -49,11 +50,13 @@ header,main,#msg{display:none!important}
 }
 </style></head><body>
 <header style="display:none">
-  <h1>⚽ Scouting</h1>
+  <h1 data-act="home" style="cursor:pointer">⚽ Scouting</h1>
   <div style="position: relative; display: inline-block;">
     <button id="btn-menu" type="button" onclick="toggleMenu(event)">☰ Menu</button>
     <div id="menu-tendina" style="display: none; position: absolute; right: 0; top: 110%; background: #ffffff; border: 1px solid #cccccc; border-radius: 8px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; flex-direction: column; gap: 6px; min-width: 190px;">
-      <button data-act="home" style="width: 100%; text-align: left;">Calciatori</button>
+      <button data-act="home" style="width: 100%; text-align: left;">Home</button>
+      <button data-act="play" style="width: 100%; text-align: left;">Calciatori</button>
+      <button data-act="obs" style="width: 100%; text-align: left;">Osservazioni</button>
       <button data-act="cart" style="width: 100%; text-align: left;">Cartelle</button>
       <button data-act="exp" style="width: 100%; text-align: left;">Esporta backup (JSON)</button>
       <button data-act="imp" style="width: 100%; text-align: left;">Importa backup</button>
@@ -74,6 +77,7 @@ header,main,#msg{display:none!important}
 <script>
 const ROLES={Portiere:["Portiere"],Difensore:["Difensore esterno","Difensore centrale", "Difensore laterale"],Centrocampista:["Centrocampista centrale","Centrocampista esterno","Centrocampista interno","Trequartista"],Attaccante:["Attaccante esterno","Punta centrale"]};
 const STATI=["Da seguire","Da prendere","Non idoneo"],AREE=[["fis","Fisico-atletico"],["tec","Tecnico"],["tat","Tattico"],["com","Comportamentale"]];
+const CATS=["Prima Squadra","U19 elite","U19 regionali","U19 provinciali","U18 elite","U17 elite","U17 regionali","U17 provinciali","U16 elite","U16 regionali","U16 provinciali","U15 elite","U15 regionali","U15 provinciali","U14 elite","U14 regionali","U14 provinciali","Scuola Calcio"],GIRONI="ABCDEFGHIJKL".split("").map(x=>"Girone "+x);
 const $=s=>document.querySelector(s),app=$("#app");
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>v===""||v==null?null:Number(v);
@@ -85,7 +89,7 @@ const obsR=o=>avg(AREE.map(([k])=>o["v_"+k]));
 function age(p){const n=new Date();if(p.dataNascita){const b=new Date(p.dataNascita);let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return{v:a,ap:false}}return p.annoNascita?{v:n.getFullYear()-p.annoNascita,ap:true}:null}
 function toast(m){const e=$("#msg");e.textContent=m;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3500)}
 let P=[],O=[],FL=[],view={n:"home"},F={},armed=null,busy=false,incNote=true;
-const SUPABASE_URL="https://opovjcbkudvcnuoqlmih.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wb3ZqY2JrdWR2Y251b3FsbWloIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0NTcwNDksImV4cCI6MjExMTAzMzA0OX0.BvQQ6o0_XrmaOYOZSQT20qZYfMDtic1VErIW8YBrH6Q",TABLE="scouting_data";
+const SUPABASE_URL="https://opovjcbkudvcnuoqlmih.supabase.co",SUPABASE_KEY="sb_publishable_bAbTUSBjiNVpWhjPuPrudg_8NoWrb_9",TABLE="scouting_data";
 const T={players:"calciatore",observations:"osservazione",folders:"cartella"},T2=Object.fromEntries(Object.entries(T).map(([a,b])=>[b,a]));
 let sb=null;
 let S={players:{},observations:{},folders:{}};
@@ -103,16 +107,28 @@ function exportB(){const b=new Blob([JSON.stringify({app:"scouting",version:1,ex
 const strip=({id,...r})=>r;
 async function run(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast("Errore: "+(e.message||e.code||"operazione non riuscita"))}finally{busy=false}}
 function go(v){view=v;armed=null;app.innerHTML="";render();window.scrollTo(0,0)}
-function render(){({home:rHome,detail:rDetail,pform:rPForm,oform:rOForm,cart:rCart})[view.n]()}
-function refresh(){if(["home","detail","cart"].includes(view.n))render()}
+function render(){({home:rHub,play:rPlay,obs:rObs,detail:rDetail,pform:rPForm,oform:rOForm,cart:rCart})[view.n]()}
+function refresh(){if(["home","play","obs","detail","cart"].includes(view.n))render()}
 const opts=(a,v,ph)=>(ph!=null?`<option value="">${ph}</option>`:"")+a.map(x=>`<option${x===v?" selected":""}>${esc(x)}</option>`).join("");
 const specOpts=v=>Object.entries(ROLES).map(([r,a])=>`<optgroup label="${r}">${opts(a,v)}</optgroup>`).join("");
 const fld=(l,n,v,t="text",x="")=>`<div><label>${l}<input type="${t}" name="${n}" value="${esc(v)}" ${x}></label></div>`;
 
 /* HOME */
-function rHome(){
+function rHub(){
+ app.innerHTML=`<div class="g" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:5vh">
+ ${[["play","⚽","Calciatori",P.length+" schede"],["obs","📝","Osservazioni",O.length+" report"],["cart","📁","Cartelle",FL.length+" cartelle"]].map(([a,i,t,n])=>`<button type="button" class="card hub" data-act="${a}"><div style="font-size:40px">${i}</div><b style="font-size:18px">${t}</b><div class="m">${n}</div></button>`).join("")}</div>`;
+}
+/* OSSERVAZIONI */
+function rObs(){
+ const rows=O.map(o=>({o,p:P.find(x=>x.id===o.playerId)})).sort((a,b)=>(b.o.dataOss||"").localeCompare(a.o.dataOss||""));
+ app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newo">Crea osservazione</button></div><h2>Osservazioni</h2><div class="m">${rows.length} osservazioni</div>`+
+ (rows.map(({o,p})=>`<div class="card c" data-act="open" data-id="${esc(o.playerId)}"><b>${esc(p?p.nome:"Calciatore eliminato")}</b><span class="tag">${esc(o.giudizio||"")}</span>
+ <div class="m">${[o.dataOss,o.modalita,o.partita,o.societaM,o.categoria].filter(Boolean).map(esc).join(" · ")}</div><div class="rt">Rating ${fmt(obsR(o))}</div></div>`).join("")||`<p class="m">Nessuna osservazione. Aggiungila dalla scheda di un calciatore.</p>`);
+}
+/* CALCIATORI (elenco con filtri) */
+function rPlay(){
  if(!$("#list")){
-  app.innerHTML=`<div class="row"><button class="p" data-act="newp">Aggiungi Calciatore</button></div>
+  app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newp">Aggiungi Calciatore</button></div><h2>Calciatori</h2>
   <details open><summary>Filtri</summary><div class="g" id="flt">
   <div><label>Nome<input data-f="q" value="${esc(F.q)}"></label></div>
   <div><label>Ruolo<select data-f="ruolo">${opts(Object.keys(ROLES),F.ruolo,"Tutti")}</select></label></div>
@@ -120,9 +136,8 @@ function rHome(){
   <div><label>Età da<input type="number" data-f="eMin" value="${esc(F.eMin)}"></label></div>
   <div><label>Età fino a<input type="number" data-f="eMax" value="${esc(F.eMax)}"></label></div>
   <div><label>Anno di nascita<input type="number" data-f="annata" value="${esc(F.annata)}"></label></div>
-  <div><label>Categoria<select data-f="cat">${opts(["Under 14","Under 15","Under 16","Under 17","Under 18","Under 19","Prima Squadra"],F.cat,"Tutte")}</select></label></div>
-  <div><label>Campionato<select data-f="camp"><option value="">-- Seleziona --</option>${["Prima Squadra","U19 elite", "U19 regionali", "U19 provinciali","U18 elite","U17 elite", "U17 regionali", "U17 provinciali","U16 elite", "U16 regionali", "U16 provinciali","U15 elite", "U15 regionali", "U15 provinciali","U14 elite", "U14 regionali", "U14 provinciali","Scuola Calcio"].map(opt => `<option value="${esc(opt)}" ${F.camp === opt ? 'selected' : ''}>${esc(opt)}</option>`).join('')}</select></label></div>
-
+  <div><label>Categoria<select data-f="cat">${opts(CATS,F.cat,"Tutte")}</select></label></div>
+  <div><label>Girone<select data-f="camp">${opts(GIRONI,F.camp,"Tutti")}</select></label></div>
   <div><label>Piede<select data-f="piede">${opts(["Destro","Sinistro"],F.piede,"Tutti")}</select></label></div>
   <div><label>Stato<select data-f="stato">${opts(STATI,F.stato,"Tutti")}</select></label></div>
   <div><label>Osservatore<input data-f="fonte" value="${esc(F.fonte)}"></label></div>
@@ -148,10 +163,10 @@ function rHome(){
 
 /* DETTAGLIO */
 function rDetail(){
- const p=P.find(x=>x.id===view.id);if(!p){go({n:"home"});return}
+ const p=P.find(x=>x.id===view.id);if(!p){go({n:"play"});return}
  const os=O.filter(x=>x.playerId===p.id).sort((a,b)=>(b.dataOss||"").localeCompare(a.dataOss||"")),a=age(p);
  const links = url(p.l1) ? `<a href="${esc(url(p.l1))}" target="_blank" rel="noopener noreferrer">Link</a>` : "";
- app.innerHTML=`<div class="row"><button data-act="home">← Elenco</button><button data-act="editp" data-id="${esc(p.id)}">Modifica</button><button data-act="pdfp" data-id="${esc(p.id)}">Scarica PDF (scheda completa)</button><label style="display:inline-flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" data-inote style="width:auto"${incNote?" checked":""}>Includi note personali</label><button class="d" data-act="delp" data-id="${esc(p.id)}">${armed==="p"+p.id?"Conferma eliminazione":"Elimina"}</button></div>
+ app.innerHTML=`<div class="row"><button data-act="play">← Calciatori</button><button data-act="editp" data-id="${esc(p.id)}">Modifica</button><button data-act="pdfp" data-id="${esc(p.id)}">Scarica PDF (scheda completa)</button><label style="display:inline-flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" data-inote style="width:auto"${incNote?" checked":""}>Includi note personali</label><button class="d" data-act="delp" data-id="${esc(p.id)}">${armed==="p"+p.id?"Conferma eliminazione":"Elimina"}</button></div>
  <div class="card"><h2>${esc(p.nome)}<span class="tag">${esc(p.stato||"")}</span></h2>
  <div>${[p.spec||p.ruolo,p.ruoliSec&&"anche "+p.ruoliSec,p.piede&&"piede "+p.piede].filter(Boolean).map(esc).join(" · ")}</div>
  <div class="m">${[a&&(a.ap?"~":"")+a.v+" anni",p.annoNascita&&"classe "+p.annoNascita,p.dataNascita,p.nazionalita].filter(Boolean).map(esc).join(" · ")}</div>
@@ -181,32 +196,35 @@ function rPForm(){
  <div><label>Ruolo<select name="ruolo" id="rr">${opts(Object.keys(ROLES),p.ruolo,"–")}</select></label></div>
  <div><label>Ruolo specifico<select name="spec"><option value="">–</option>${specOpts(p.spec)}</select></label></div>
  ${fld("Ruoli secondari","ruoliSec",p.ruoliSec)}${fld("Società attuale","societa",p.societa)}<div><label>Categoria<select name="categoria">${opts(["Prima Squadra","U19 elite","U19 regionali","U19 provinciali","U18 elite","U17 elite","U17 regionali","U17 provinciali","U16 elite","U16 regionali","U16 provinciali","U15 elite","U15 regionali","U15 provinciali","U14 elite","U14 regionali","U14 provinciali","Scuola Calcio"],p.categoria,"–")}</select></label></div>
-<div><label>Girone<select name="campionato" data-f="campionato">${opts(["Girone A","Girone B","Girone C","Girone D","Girone E","Girone F","Girone G","Girone H","Girone I","Girone J","Girone K","Girone L"],p.campionato,"–")}</select></label></div>
+<div><label>Girone<select name="campionato">${opts(["Girone A","Girone B","Girone C","Girone D","Girone E","Girone F","Girone G","Girone H","Girone I","Girone J","Girone K","Girone L"],p.campionato,"–")}</select></label></div>
 ${fld("Osservatore","fonte",p.fonte)}
 
 
  <div><label>Stato<select name="stato">${opts(STATI,p.stato)}</select></label></div>
  ${fld("Link","l1",p.l1,"url")}
- </div><div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="${view.id?"open":"home"}" data-id="${esc(view.id||"")}">Annulla</button></div></form>`;
+ </div><div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="${view.id?"open":"play"}" data-id="${esc(view.id||"")}">Annulla</button></div></form>`;
 }
 /* FORM OSSERVAZIONE */
 function rOForm(){
  const o=view.oid?O.find(x=>x.id===view.oid):{dataOss:new Date().toISOString().slice(0,10),modalita:"Live",giudizio:"Da seguire"};
- const p=P.find(x=>x.id===(o.playerId||view.pid));
- app.innerHTML=`<h2>${view.oid?"Modifica":"Nuova"} osservazione – ${esc(p&&p.nome)}</h2><form id="f"><div class="g">
- ${fld("Data osservazione","dataOss",o.dataOss,"date","required")}${fld("Data della gara","dataGara",o.dataGara,"date")}
+ const pid=o.playerId||view.pid;
+ const p=P.find(x=>x.id===pid);
+ const pSel=!pid?`<div><label>Calciatore *<select name="playerId" required><option value="">– Seleziona –</option>${[...P].sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")).map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("")}</select></label></div>`:"";
+ app.innerHTML=`<h2>${view.oid?"Modifica":"Nuova"} osservazione${p?" – "+esc(p.nome):""}</h2><form id="f"><div class="g">
+ ${pSel}${fld("Data osservazione","dataOss",o.dataOss,"date","required")}${fld("Data della gara","dataGara",o.dataGara,"date")}
+
  <div><label>Modalità<select name="modalita">${opts(["Live","Video"],o.modalita)}</select></label></div>
  ${fld("Partita","partita",o.partita)}${fld("Società al momento","societaM",o.societaM||(p&&p.societa))}${fld("Categoria","categoria",o.categoria||(p&&p.categoria))}
  ${fld("Altezza (cm)","altezza",o.altezza,"number")}${fld("Peso (kg)","peso",o.peso,"number")}${fld("Link video","video",o.video,"url")}</div>
  ${AREE.map(([k,l])=>`<div class="card"><b>${l}</b><div class="g"><div><label>Voto 0–10<input type="number" name="v_${k}" min="0" max="10" step="0.5" value="${esc(o["v_"+k])}"></label></div></div><label>Note<textarea name="n_${k}">${esc(o["n_"+k])}</textarea></label></div>`).join("")}
  <label>Note personali<textarea name="noteP">${esc(o.noteP)}</textarea></label>
  <div><label>Giudizio<select name="giudizio">${opts(STATI,o.giudizio)}</select></label></div>
- <div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="open" data-id="${esc(p&&p.id)}">Annulla</button></div></form>`;
+  <div class="row"><button class="p" type="submit">Salva</button><button type="button" data-act="${pid?"open":"obs"}" data-id="${esc(pid||"")}">Annulla</button></div></form>`;
 }
 /* CARTELLE */
 function rCart(){
  if(app.querySelector("input:focus"))return;
- app.innerHTML=`<h2>Cartelle</h2><div class="row"><input id="nf" placeholder="Nome nuova cartella" style="max-width:260px"><button class="p" data-act="newf">Crea</button></div>
+ app.innerHTML=`<div class="row"><button data-act="home">← Home</button></div><h2>Cartelle</h2><div class="row"><input id="nf" placeholder="Nome nuova cartella" style="max-width:260px"><button class="p" data-act="newf">Crea</button></div>
  ${FL.map(f=>`<div class="card"><div class="row"><input value="${esc(f.name)}" data-rn="${esc(f.id)}" style="max-width:260px"><button data-act="renf" data-id="${esc(f.id)}">Rinomina</button>
  <button data-act="openf" data-id="${esc(f.id)}">Apri (${(f.playerIds||[]).length})</button><button class="d" data-act="delf" data-id="${esc(f.id)}">${armed==="f"+f.id?"Conferma":"Elimina"}</button></div></div>`).join("")||`<p class="m">Nessuna cartella.</p>`}`;
 }
@@ -238,29 +256,29 @@ function pdfDoc(pid,oid){
 }
 
 /* EVENTI */
-document.addEventListener("input",e=>{const t=e.target;if(t.dataset.f){F[t.dataset.f]=t.value;if(t.dataset.f==="ruolo"){F.spec=""}rHome()}});
-document.addEventListener("change",e=>{const t=e.target;if(t.dataset.inote!=null)incNote=t.checked;if(t.dataset.f&&t.tagName==="SELECT"){F[t.dataset.f]=t.value;rHome()}
+document.addEventListener("input",e=>{const t=e.target;if(t.dataset.f&&view.n==="play"){F[t.dataset.f]=t.value;if(t.dataset.f==="ruolo"){F.spec="";const sp=document.querySelector('[data-f="spec"]');if(sp)sp.value=""}rPlay()}});
+document.addEventListener("change",e=>{const t=e.target;if(t.dataset.inote!=null)incNote=t.checked;if(t.dataset.f&&t.tagName==="SELECT"&&view.n==="play"){F[t.dataset.f]=t.value;rPlay()}
  if(t.dataset.fold)run(async()=>{const f=FL.find(x=>x.id===t.dataset.fold),s=new Set(f.playerIds||[]);t.checked?s.add(t.dataset.pid):s.delete(t.dataset.pid);await db.doc("folders/"+f.id).set({...strip(f),playerIds:[...s]})})});
 document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="lf"){login(e.target);return}const d=Object.fromEntries(new FormData(e.target).entries());
  if(view.n==="pform")run(async()=>{const id=view.id||uid("p"),old=P.find(x=>x.id===id)||{};
   const r={...strip(old),...d,annoNascita:num(d.annoNascita)};await db.doc("players/"+id).set(r);toast("Salvato");go({n:"detail",id})});
- else if(view.n==="oform")run(async()=>{const id=view.oid||uid("o"),pid=view.pid||O.find(x=>x.id===id).playerId,r={...d,playerId:pid};
+  else if(view.n==="oform")run(async()=>{const id=view.oid||uid("o"),pid=d.playerId||view.pid||O.find(x=>x.id===id).playerId,r={...d,playerId:pid};
   AREE.forEach(([k])=>r["v_"+k]=num(d["v_"+k]));r.altezza=num(d.altezza);r.peso=num(d.peso);await db.doc("observations/"+id).set(r);toast("Salvato");go({n:"detail",id:pid})})});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,id=b.dataset.id;
  const arm=k=>{if(armed!==k){armed=k;refresh();return false}armed=null;return true};
- if(a==="out")run(async()=>{await sb.auth.signOut()});else if(a==="reload")run(async()=>{await loadAll();go({n:"home"});toast("Dati aggiornati")});else if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
+ if(a==="out")run(async()=>{await sb.auth.signOut()});else if(a==="reload")run(async()=>{await loadAll();refresh();toast("Dati aggiornati")});else if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="play")go({n:"play"});else if(a==="obs")go({n:"obs"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
  else if(a==="newp")go({n:"pform"});else if(a==="editp")go({n:"pform",id});else if(a==="newo")go({n:"oform",pid:id});else if(a==="edito")go({n:"oform",oid:id});
  else if(a==="pdfp")pdfDoc(id);
  else if(a==="pdfo"){const o=O.find(x=>x.id===id);if(o)pdfDoc(o.playerId,id)}
- else if(a==="reset"){F={};app.innerHTML="";rHome()}
+ else if(a==="reset"){F={};app.innerHTML="";rPlay()}
  else if(a==="delp"){if(arm("p"+id))run(async()=>{for(const o of O.filter(x=>x.playerId===id))await db.doc("observations/"+o.id).delete();
   for(const f of FL.filter(f=>(f.playerIds||[]).includes(id)))await db.doc("folders/"+f.id).set({...strip(f),playerIds:f.playerIds.filter(x=>x!==id)});
-  await db.doc("players/"+id).delete();go({n:"home"})})}
+  await db.doc("players/"+id).delete();go({n:"play"})})}
  else if(a==="delo"){if(arm("o"+id))run(async()=>{await db.doc("observations/"+id).delete()})}
  else if(a==="newf"){const n=$("#nf").value.trim();if(n)run(async()=>{await db.doc("folders/"+uid("f")).set({name:n,playerIds:[]})})}
  else if(a==="renf"){const n=app.querySelector(`[data-rn="${id}"]`).value.trim(),f=FL.find(x=>x.id===id);if(n)run(async()=>{await db.doc("folders/"+id).set({...strip(f),name:n});toast("Rinominata")})}
  else if(a==="delf"){if(arm("f"+id))run(async()=>{await db.doc("folders/"+id).delete()})}
- else if(a==="openf"){F.cart=id;go({n:"home"})}});
+ else if(a==="openf"){F.cart=id;go({n:"play"})}});
 
 /* AVVIO */
 const show=w=>{$("#boot").style.display="none";$("#login").style.display=w==="login"?"block":"none";document.querySelector("header").style.display=w==="app"?"":"none";app.style.display=w==="app"?"":"none"};
@@ -276,7 +294,7 @@ $("#fi").addEventListener("change",e=>{const f=e.target.files[0];e.target.value=
   const rows=[];for(const[c,t]of Object.entries(T))for(const[id,v]of Object.entries(d[c]))if(v&&typeof v==="object")rows.push({id,tipo:t,contenuto:v});
   if(!confirm("Importo "+rows.length+" record (calciatori, osservazioni, cartelle). I record con lo stesso ID vengono aggiornati, gli altri restano invariati. Continuare?"))return;
   run(async()=>{for(let i=0;i<rows.length;i+=200){const{error}=await sb.from(TABLE).upsert(rows.slice(i,i+200));if(error)throw error}
-   await loadAll();go({n:"home"});toast("Backup importato")})};
+   await loadAll();refresh();toast("Backup importato")})};
  r.readAsText(f)});
 (async()=>{
  if(!window.supabase){show("login");$("#lerr").textContent="Impossibile caricare Supabase: serve una connessione internet.";return}
