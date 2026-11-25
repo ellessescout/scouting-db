@@ -129,7 +129,7 @@ function rObs(){
 function rPlay(){
  if(!$("#list")){
   app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newp">Aggiungi Calciatore</button></div><h2>Calciatori</h2>
-  <details open><summary>Filtri</summary><div class="g" id="flt">
+  <details><summary>Filtri</summary><div class="g" id="flt">
   <div><label>Nome<input data-f="q" value="${esc(F.q)}"></label></div>
   <div><label>Ruolo<select data-f="ruolo">${opts(Object.keys(ROLES),F.ruolo,"Tutti")}</select></label></div>
   <div><label>Ruolo specifico<select data-f="spec"><option value="">Tutti</option>${specOpts(F.spec)}</select></label></div>
@@ -143,7 +143,7 @@ function rPlay(){
   <div><label>Osservatore<input data-f="fonte" value="${esc(F.fonte)}"></label></div>
   <div><label>Cartella<select data-f="cart" id="fcart"></select></label></div>
   <div><label>Rating minimo<input type="number" step="0.5" min="0" max="10" data-f="rMin" value="${esc(F.rMin)}"></label></div>
-  <div><label>Ordina per<select data-f="ord">${["Nome","Rating","Annata"].map(x=>`<option${F.ord===x?" selected":""}>${x}</option>`).join("")}</select></label></div>
+    <div><label>Ordina per<select data-f="ord">${["Anno","Nome","Rating"].map(x=>`<option${F.ord===x?" selected":""}>${x}</option>`).join("")}</select></label></div>
   </div><div class="row"><button data-act="reset">Azzera filtri</button><span class="m" id="cnt"></span></div></details><div id="list"></div>`;
  }
  const sel=$("#fcart");sel.innerHTML=`<option value="">Tutte</option>`+FL.map(f=>`<option value="${esc(f.id)}"${F.cart===f.id?" selected":""}>${esc(f.name)}</option>`).join("");
@@ -153,8 +153,8 @@ function rPlay(){
   return inc(p.nome,q)&&(!F.ruolo||p.ruolo===F.ruolo)&&(!F.spec||p.spec===F.spec)&&(!F.eMin||(a&&a.v>=+F.eMin))&&(!F.eMax||(a&&a.v<=+F.eMax))
   &&(!F.annata||p.annoNascita==F.annata)&&inc(p.categoria,F.cat)&&inc(p.campionato,F.camp)&&(!F.piede||p.piede===F.piede)&&(!F.stato||p.stato===F.stato)
   &&inc(p.fonte,F.fonte)&&(!F.cart||(fo&&(fo.playerIds||[]).includes(p.id)))&&(!F.rMin||(r!=null&&r>=+F.rMin))});
- const ord=F.ord||"Nome";
- rows.sort((x,y)=>ord==="Rating"?(y.r??-1)-(x.r??-1):ord==="Annata"?(y.p.annoNascita||0)-(x.p.annoNascita||0):(x.p.nome||"").localeCompare(y.p.nome||""));
+  const ord=F.ord||"Anno";
+ rows.sort((x,y)=>ord==="Rating"?(y.r??-1)-(x.r??-1):ord==="Anno"?(y.p.annoNascita||0)-(x.p.annoNascita||0):(x.p.nome||"").localeCompare(y.p.nome||""));
  $("#cnt").textContent=rows.length+" di "+P.length+" calciatori";
  $("#list").innerHTML=rows.map(({p,n,r,a})=>`<div class="card c" data-act="open" data-id="${esc(p.id)}"><b>${esc(p.nome)}</b>${p.stato?`<span class="tag">${esc(p.stato)}</span>`:""}
   <div><small>${[p.spec||p.ruolo,a?(a.ap?"~":"")+a.v+" anni":"",p.annoNascita?"classe "+p.annoNascita:"",p.societa,p.categoria].filter(Boolean).map(esc).join(" · ")}</small></div>
