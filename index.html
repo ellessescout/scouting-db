@@ -86,6 +86,8 @@ const fmt=x=>x==null?"–":(Math.round(x*10)/10).toFixed(1);
 const url=u=>/^https?:\/\//i.test(u||"")?u:"";
 const uid=p=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const obsR=o=>avg(AREE.map(([k])=>o["v_"+k]));
+const rtCol=v=>v==null?"":" style=\"color:"+(v<6?"var(--bad)":"var(--ac)")+"\"";
+const tagCol=s=>s==="Da prendere"?" style=\"color:var(--ac);border-color:var(--ac);font-weight:600\"":s==="Non idoneo"?" style=\"color:var(--bad);border-color:var(--bad);font-weight:600\"":"";
 function age(p){const n=new Date();if(p.dataNascita){const b=new Date(p.dataNascita);let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return{v:a,ap:false}}return p.annoNascita?{v:n.getFullYear()-p.annoNascita,ap:true}:null}
 function toast(m){const e=$("#msg");e.textContent=m;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3500)}
 let P=[],O=[],FL=[],view={n:"home"},F={},armed=null,busy=false,incNote=true;
@@ -122,15 +124,18 @@ function rHub(){
 function rObs(){
  const rows=O.map(o=>({o,p:P.find(x=>x.id===o.playerId)})).sort((a,b)=>(b.o.dataOss||"").localeCompare(a.o.dataOss||""));
  app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newo">Crea osservazione</button></div><h2>Osservazioni</h2><div class="m">${rows.length} osservazioni</div>`+
- (rows.map(({o,p})=>`<div class="card c" data-act="open" data-id="${esc(o.playerId)}"><b>${esc(p?p.nome:"Calciatore eliminato")}</b><span class="tag">${esc(o.giudizio||"")}</span>
- <div class="m">${[o.dataOss,o.modalita,o.partita,o.societaM,o.categoria].filter(Boolean).map(esc).join(" · ")}</div><div class="rt">Rating ${fmt(obsR(o))}</div></div>`).join("")||`<p class="m">Nessuna osservazione. Aggiungila dalla scheda di un calciatore.</p>`);
+  (rows.map(({o,p})=>`<div class="card c" data-act="open" data-id="${esc(o.playerId)}"><b>${esc(p?p.nome:"Calciatore eliminato")}</b><span class="tag"${tagCol(o.giudizio)}>${esc(o.giudizio||"")}</span>
+  <div class="m">${[o.dataOss,o.modalita,o.partita,o.societaM,o.categoria].filter(Boolean).map(esc).join(" · ")}</div><div class="rt"${rtCol(obsR(o))}>Rating ${fmt(obsR(o))}</div></div>`).join("")||`<p class="m">Nessuna osservazione. Aggiungila dalla scheda di un calciatore.</p>`);
 }
 /* CALCIATORI (elenco con filtri) */
 function rPlay(){
  if(!$("#list")){
-  app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newp">Aggiungi Calciatore</button></div><h2>Calciatori</h2>
+  const curF=F.cart?FL.find(f=>f.id===F.cart):null;
+  app.innerHTML=`<div class="row"><button data-act="home">← Home</button><button class="p" data-act="newp">Aggiungi Calciatore</button>${curF?`<button type="button" data-act="addex">Aggiungi esistente</button>`:""}
+</div><h2>${curF?"Cartella: "+esc(curF.name):"Calciatori"}</h2>
+  <div id="ex-box" class="card" style="display:none"></div>
   <details><summary>Filtri</summary><div class="g" id="flt">
-  <div><label>Nome<input data-f="q" value="${esc(F.q)}"></label></div>
+  <div><label>Nome<input autocomplete="off" data-f="q" value="${esc(F.q)}"></label></div>
   <div><label>Ruolo<select data-f="ruolo">${opts(Object.keys(ROLES),F.ruolo,"Tutti")}</select></label></div>
   <div><label>Ruolo specifico<select data-f="spec"><option value="">Tutti</option>${specOpts(F.spec)}</select></label></div>
   <div><label>Età da<input type="number" data-f="eMin" value="${esc(F.eMin)}"></label></div>
@@ -155,10 +160,18 @@ function rPlay(){
   &&inc(p.fonte,F.fonte)&&(!F.cart||(fo&&(fo.playerIds||[]).includes(p.id)))&&(!F.rMin||(r!=null&&r>=+F.rMin))});
   const ord=F.ord||"Anno";
  rows.sort((x,y)=>ord==="Rating"?(y.r??-1)-(x.r??-1):ord==="Anno"?(y.p.annoNascita||0)-(x.p.annoNascita||0):(x.p.nome||"").localeCompare(y.p.nome||""));
- $("#cnt").textContent=rows.length+" di "+P.length+" calciatori";
- $("#list").innerHTML=rows.map(({p,n,r,a})=>`<div class="card c" data-act="open" data-id="${esc(p.id)}"><b>${esc(p.nome)}</b>${p.stato?`<span class="tag">${esc(p.stato)}</span>`:""}
+  const ex=$("#ex-box");
+ if(ex){const curF=F.cart?FL.find(f=>f.id===F.cart):null;
+  if(curF){const avail=P.filter(p=>!(curF.playerIds||[]).includes(p.id)).sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
+   ex.innerHTML=`<b>Aggiungi calciatore esistente a "${esc(curF.name)}"</b>
+    <input type="search" id="ex-q" placeholder="Cerca calciatore per nome…" style="margin-top:8px" oninput="const q=this.value.toLowerCase();this.parentNode.querySelectorAll('[data-act=putf]').forEach(b=>b.style.display=b.textContent.toLowerCase().includes(q)?'':'none')">
+    <div class="row" style="margin-top:8px">`+
+    (avail.map(p=>`<button type="button" data-act="putf" data-id="${esc(p.id)}">+ ${esc(p.nome)}${p.annoNascita?" ("+p.annoNascita+")":""}</button>`).join("")||`<span class="m">Tutti i calciatori sono già in questa cartella.</span>`)+`</div>`}
+  else ex.style.display="none"}
+$("#cnt").textContent=rows.length+" di "+P.length+" calciatori";
+  $("#list").innerHTML=rows.map(({p,n,r,a})=>`<div class="card c" data-act="open" data-id="${esc(p.id)}"><b>${esc(p.nome)}</b>${p.stato?`<span class="tag"${tagCol(p.stato)}>${esc(p.stato)}</span>`:""}
   <div><small>${[p.spec||p.ruolo,a?(a.ap?"~":"")+a.v+" anni":"",p.annoNascita?"classe "+p.annoNascita:"",p.societa,p.categoria].filter(Boolean).map(esc).join(" · ")}</small></div>
-  <div class="rt">Rating ${fmt(r)} <small>(${n} osserv.)</small></div></div>`).join("")||`<p class="m">Nessun calciatore. Aggiungine uno con “Aggiungi Calciatore”.</p>`;
+    <div class="rt"${rtCol(r)}>Rating ${fmt(r)} <small>(${n} osserv.)</small></div></div>`).join("")||`<p class="m">Nessun calciatore. Aggiungine uno con “Aggiungi Calciatore”.</p>`;
 }
 
 /* DETTAGLIO */
@@ -173,12 +186,12 @@ function rDetail(){
  <div class="m">${[p.societa,p.categoria,p.campionato].filter(Boolean).map(esc).join(" · ")}</div>
  ${p.fonte?`<div class="m">Fonte: ${esc(p.fonte)}</div>`:""}
  <div>${links||"<span class='m'>Nessun link</span>"}${p.dataLink?` <small>(ultimo controllo ${esc(p.dataLink)})</small>`:""}</div>
- <div class="rt">Rating medio ${fmt(avg(os.map(obsR)))} <small>(${os.length} osservazioni)</small></div></div>
- <div class="card"><b>Cartelle</b><div class="row">${FL.map(f=>`<label style="display:flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" style="width:auto" data-fold="${esc(f.id)}" data-pid="${esc(p.id)}"${(f.playerIds||[]).includes(p.id)?" checked":""}>${esc(f.name)}</label>`).join("")||"<span class='m'>Crea prima una cartella dalla sezione Cartelle.</span>"}</div></div>
- <div class="row"><h2 style="margin:0">Osservazioni</h2><button class="p" data-act="newo" data-id="${esc(p.id)}">+ Osservazione</button></div>
+  <div class="rt"${rtCol(avg(os.map(obsR)))}>Rating medio ${fmt(avg(os.map(obsR)))} <small>(${os.length} osservazioni)</small></div></div>
+  <div class="card"><h2>${esc(p.nome)}<span class="tag"${tagCol(p.stato)}>${esc(p.stato||"")}</span></h2>
+  <div class="row"><h2 style="margin:0">Osservazioni</h2><button class="p" data-act="newo" data-id="${esc(p.id)}">Aggiungi Osservazione</button></div>
  ${os.map(o=>`<div class="card"><b>${esc(o.dataOss||"")}</b> <span class="tag">${esc(o.modalita||"")}</span><span class="tag">${esc(o.giudizio||"")}</span>
  <div class="m">${[o.partita,o.dataGara&&"gara del "+o.dataGara,o.societaM,o.categoria,o.altezza&&o.altezza+" cm",o.peso&&o.peso+" kg"].filter(Boolean).map(esc).join(" · ")}</div>
- <div class="rt">Rating ${fmt(obsR(o))}</div>
+  <div class="rt"${rtCol(obsR(o))}>Rating ${fmt(obsR(o))}</div>
  ${AREE.map(([k,l])=>`<div><b>${l}: ${fmt(o["v_"+k])}</b> ${esc(o["n_"+k]||"")}</div>`).join("")}
  ${o.noteP?`<div class="m">Note personali: ${esc(o.noteP)}</div>`:""}
  ${url(o.video)?`<div><a href="${esc(url(o.video))}" target="_blank" rel="noopener noreferrer">Video</a></div>`:""}
@@ -267,7 +280,8 @@ document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="lf")
   AREE.forEach(([k])=>r["v_"+k]=num(d["v_"+k]));r.altezza=num(d.altezza);r.peso=num(d.peso);await db.doc("observations/"+id).set(r);toast("Salvato");go({n:"detail",id:pid})})});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,id=b.dataset.id;
  const arm=k=>{if(armed!==k){armed=k;refresh();return false}armed=null;return true};
- if(a==="out")run(async()=>{await sb.auth.signOut()});else if(a==="reload")run(async()=>{await loadAll();refresh();toast("Dati aggiornati")});else if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="play")go({n:"play"});else if(a==="obs")go({n:"obs"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
+ if(a==="out")run(async()=>{await sb.auth.signOut()});else if(a==="reload")run(async()=>{await loadAll();refresh();toast("Dati aggiornati")});else if(a==="exp")exportB();else if(a==="imp")$("#fi").click();else if(a==="home")go({n:"home"});else if(a==="play"){F={};go({n:"play"})}else if(a==="obs")go({n:"obs"});else if(a==="cart")go({n:"cart"});else if(a==="open")go({n:"detail",id});
+
  else if(a==="newp")go({n:"pform"});else if(a==="editp")go({n:"pform",id});else if(a==="newo")go({n:"oform",pid:id});else if(a==="edito")go({n:"oform",oid:id});
  else if(a==="pdfp")pdfDoc(id);
  else if(a==="pdfo"){const o=O.find(x=>x.id===id);if(o)pdfDoc(o.playerId,id)}
@@ -279,7 +293,9 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(
   else if(a==="newf"){const n=$("#nf").value.trim();if(n){$("#nf").blur();run(async()=>{await db.doc("folders/"+uid("f")).set({name:n,playerIds:[]})})}}
   else if(a==="askren"){const f=FL.find(x=>x.id===id);if(!f)return;const n=prompt("Nuovo nome cartella:",f.name);if(n&&n.trim()&&n.trim()!==f.name)run(async()=>{await db.doc("folders/"+id).set({...strip(f),name:n.trim()});toast("Rinominata")})}
  else if(a==="delf"){if(arm("f"+id))run(async()=>{await db.doc("folders/"+id).delete()})}
- else if(a==="openf"){F.cart=id;go({n:"play"})}});
+  else if(a==="openf"){F={cart:id};go({n:"play"})}
+ else if(a==="addex"){const b=$("#ex-box");if(b)b.style.display=b.style.display==="none"?"block":"none"}
+ else if(a==="putf"){const f=FL.find(x=>x.id===F.cart);if(f)run(async()=>{await db.doc("folders/"+f.id).set({...strip(f),playerIds:[...new Set([...(f.playerIds||[]),id])]});toast("Aggiunto alla cartella")})}});
 
 /* AVVIO */
 const show=w=>{$("#boot").style.display="none";$("#login").style.display=w==="login"?"block":"none";document.querySelector("header").style.display=w==="app"?"":"none";app.style.display=w==="app"?"":"none"};
