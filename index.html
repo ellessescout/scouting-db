@@ -225,8 +225,8 @@ function rOForm(){
 function rCart(){
  if(app.querySelector("input:focus"))return;
  app.innerHTML=`<div class="row"><button data-act="home">← Home</button></div><h2>Cartelle</h2><div class="row"><input id="nf" placeholder="Nome nuova cartella" style="max-width:260px"><button class="p" data-act="newf">Crea</button></div>
- ${FL.map(f=>`<div class="card"><div class="row"><input value="${esc(f.name)}" data-rn="${esc(f.id)}" style="max-width:260px"><button data-act="renf" data-id="${esc(f.id)}">Rinomina</button>
- <button data-act="openf" data-id="${esc(f.id)}">Apri (${(f.playerIds||[]).length})</button><button class="d" data-act="delf" data-id="${esc(f.id)}">${armed==="f"+f.id?"Conferma":"Elimina"}</button></div></div>`).join("")||`<p class="m">Nessuna cartella.</p>`}`;
+ ${FL.map(f=>`<div class="card"><div class="row" style="justify-content:space-between"><div data-act="openf" data-id="${esc(f.id)}" style="cursor:pointer;flex:1"><b>${esc(f.name)}</b> <small>(${(f.playerIds||[]).length})</small></div>
+ <div class="row" style="margin:0"><button data-act="askren" data-id="${esc(f.id)}">Rinomina</button><button class="d" data-act="delf" data-id="${esc(f.id)}">${armed==="f"+f.id?"Conferma":"Elimina"}</button></div></div></div>`).join("")||`<p class="m">Nessuna cartella.</p>`}`;
 }
 
 /* PDF (stampa del report: nel dialogo si sceglie “Salva come PDF”) */
@@ -257,6 +257,7 @@ function pdfDoc(pid,oid){
 
 /* EVENTI */
 document.addEventListener("input",e=>{const t=e.target;if(t.dataset.f&&view.n==="play"){F[t.dataset.f]=t.value;if(t.dataset.f==="ruolo"){F.spec="";const sp=document.querySelector('[data-f="spec"]');if(sp)sp.value=""}rPlay()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="nf"){e.preventDefault();const b=document.querySelector('[data-act="newf"]');if(b)b.click()}});
 document.addEventListener("change",e=>{const t=e.target;if(t.dataset.inote!=null)incNote=t.checked;if(t.dataset.f&&t.tagName==="SELECT"&&view.n==="play"){F[t.dataset.f]=t.value;rPlay()}
  if(t.dataset.fold)run(async()=>{const f=FL.find(x=>x.id===t.dataset.fold),s=new Set(f.playerIds||[]);t.checked?s.add(t.dataset.pid):s.delete(t.dataset.pid);await db.doc("folders/"+f.id).set({...strip(f),playerIds:[...s]})})});
 document.addEventListener("submit",e=>{e.preventDefault();if(e.target.id==="lf"){login(e.target);return}const d=Object.fromEntries(new FormData(e.target).entries());
@@ -275,8 +276,8 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(
   for(const f of FL.filter(f=>(f.playerIds||[]).includes(id)))await db.doc("folders/"+f.id).set({...strip(f),playerIds:f.playerIds.filter(x=>x!==id)});
   await db.doc("players/"+id).delete();go({n:"play"})})}
  else if(a==="delo"){if(arm("o"+id))run(async()=>{await db.doc("observations/"+id).delete()})}
- else if(a==="newf"){const n=$("#nf").value.trim();if(n)run(async()=>{await db.doc("folders/"+uid("f")).set({name:n,playerIds:[]})})}
- else if(a==="renf"){const n=app.querySelector(`[data-rn="${id}"]`).value.trim(),f=FL.find(x=>x.id===id);if(n)run(async()=>{await db.doc("folders/"+id).set({...strip(f),name:n});toast("Rinominata")})}
+  else if(a==="newf"){const n=$("#nf").value.trim();if(n){$("#nf").blur();run(async()=>{await db.doc("folders/"+uid("f")).set({name:n,playerIds:[]})})}}
+  else if(a==="askren"){const f=FL.find(x=>x.id===id);if(!f)return;const n=prompt("Nuovo nome cartella:",f.name);if(n&&n.trim()&&n.trim()!==f.name)run(async()=>{await db.doc("folders/"+id).set({...strip(f),name:n.trim()});toast("Rinominata")})}
  else if(a==="delf"){if(arm("f"+id))run(async()=>{await db.doc("folders/"+id).delete()})}
  else if(a==="openf"){F.cart=id;go({n:"play"})}});
 
